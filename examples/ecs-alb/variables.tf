@@ -10,6 +10,7 @@ variable "az_count" {
 
 variable "key_name" {
   description = "Name of AWS key pair"
+  default="ray.muneton.gofundme.sre"
 }
 
 variable "instance_type" {
@@ -34,4 +35,15 @@ variable "asg_desired" {
 
 variable "admin_cidr_ingress" {
   description = "CIDR to allow tcp/22 ingress to EC2 instance"
+  default="75.82.47.204/32"
+}
+
+variable "nginx_repository_uri" {
+  description = "nginx repository url"
+  default = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx "
+}
+
+variable "nginx_tag" {
+  description = "nginx image tag"
+  default     = "1.10"
 }

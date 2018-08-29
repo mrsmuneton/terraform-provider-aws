@@ -41,13 +41,13 @@ resource "aws_route_table_association" "a" {
 
 ### Compute
 
-resource "aws_autoscaling_group" "app" {
-  name                 = "tf-test-asg"
+resource "aws_autoscaling_group" "nginx" {
+  name                 = "tf-asg"
   vpc_zone_identifier  = ["${aws_subnet.main.*.id}"]
   min_size             = "${var.asg_min}"
   max_size             = "${var.asg_max}"
   desired_capacity     = "${var.asg_desired}"
-  launch_configuration = "${aws_launch_configuration.app.name}"
+  launch_configuration = "${aws_launch_configuration.nginx.name}"
 }
 
 data "template_file" "cloud_config" {
@@ -83,7 +83,7 @@ data "aws_ami" "stable_coreos" {
   owners = ["595879546273"] # CoreOS
 }
 
-resource "aws_launch_configuration" "app" {
+resource "aws_launch_configuration" "nginx" {
   security_groups = [
     "${aws_security_group.instance_sg.id}",
   ]
@@ -91,7 +91,7 @@ resource "aws_launch_configuration" "app" {
   key_name                    = "${var.key_name}"
   image_id                    = "${data.aws_ami.stable_coreos.id}"
   instance_type               = "${var.instance_type}"
-  iam_instance_profile        = "${aws_iam_instance_profile.app.name}"
+  iam_instance_profile        = "${aws_iam_instance_profile.nginx.name}"
   user_data                   = "${data.template_file.cloud_config.rendered}"
   associate_public_ip_address = true
 
@@ -162,36 +162,36 @@ resource "aws_security_group" "instance_sg" {
 ## ECS
 
 resource "aws_ecs_cluster" "main" {
-  name = "terraform_example_ecs_cluster"
+  name = "userpics-cluster"
 }
 
 data "template_file" "task_definition" {
-  template = "${file("${path.module}/task-definition.json")}"
+  template = "${file("${path.module}/nginx-server-task.json")}"
 
   vars {
-    image_url        = "ghost:latest"
-    container_name   = "ghost"
+    image_url        = "${var.nginx_repository_uri}:${var.nginx_tag}"
+    container_name   = "nginx"
     log_group_region = "${var.aws_region}"
-    log_group_name   = "${aws_cloudwatch_log_group.app.name}"
+    log_group_name   = "${aws_cloudwatch_log_group.nginx.name}"
   }
 }
 
-resource "aws_ecs_task_definition" "ghost" {
-  family                = "tf_example_ghost_td"
+resource "aws_ecs_task_definition" "nginx" {
+  family                = "tf_nginx_td"
   container_definitions = "${data.template_file.task_definition.rendered}"
 }
 
 resource "aws_ecs_service" "test" {
-  name            = "tf-example-ecs-ghost"
+  name            = "tf-ecs-nginx"
   cluster         = "${aws_ecs_cluster.main.id}"
-  task_definition = "${aws_ecs_task_definition.ghost.arn}"
+  task_definition = "${aws_ecs_task_definition.nginx.arn}"
   desired_count   = 1
   iam_role        = "${aws_iam_role.ecs_service.name}"
 
   load_balancer {
     target_group_arn = "${aws_alb_target_group.test.id}"
-    container_name   = "ghost"
-    container_port   = "2368"
+    container_name   = "nginx"
+    container_port   = "8080"
   }
 
   depends_on = [
@@ -203,7 +203,7 @@ resource "aws_ecs_service" "test" {
 ## IAM
 
 resource "aws_iam_role" "ecs_service" {
-  name = "tf_example_ecs_role"
+  name = "tf_ecs_role"
 
   assume_role_policy = <<EOF
 {
@@ -223,7 +223,7 @@ EOF
 }
 
 resource "aws_iam_role_policy" "ecs_service" {
-  name = "tf_example_ecs_policy"
+  name = "tf_ecs_policy"
   role = "${aws_iam_role.ecs_service.name}"
 
   policy = <<EOF
@@ -241,26 +241,38 @@ resource "aws_iam_role_policy" "ecs_service" {
         "elasticloadbalancing:RegisterTargets"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "ECR",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:GetRepositoryPolicy",
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
     }
+
   ]
 }
 EOF
 }
 
-resource "aws_iam_instance_profile" "app" {
+resource "aws_iam_instance_profile" "nginx" {
   name = "tf-ecs-instprofile"
-  role = "${aws_iam_role.app_instance.name}"
+  role = "${aws_iam_role.nginx_instance.name}"
 }
 
-resource "aws_iam_role" "app_instance" {
-  name = "tf-ecs-example-instance-role"
+resource "aws_iam_role" "nginx_instance" {
+  name = "tf-ecs-instance-role"
 
   assume_role_policy = <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "",
+      "Sid": "AssumeRole",
       "Effect": "Allow",
       "Principal": {
         "Service": "ec2.amazonaws.com"
@@ -276,28 +288,28 @@ data "template_file" "instance_profile" {
   template = "${file("${path.module}/instance-profile-policy.json")}"
 
   vars {
-    app_log_group_arn = "${aws_cloudwatch_log_group.app.arn}"
+    app_log_group_arn = "${aws_cloudwatch_log_group.nginx.arn}"
     ecs_log_group_arn = "${aws_cloudwatch_log_group.ecs.arn}"
   }
 }
 
-resource "aws_iam_role_policy" "instance" {
-  name   = "TfEcsExampleInstanceRole"
-  role   = "${aws_iam_role.app_instance.name}"
+resource "aws_iam_role_policy" "nginx_instance" {
+  name   = "TfEcsInstanceRole"
+  role   = "${aws_iam_role.nginx_instance.name}"
   policy = "${data.template_file.instance_profile.rendered}"
 }
 
 ## ALB
 
 resource "aws_alb_target_group" "test" {
-  name     = "tf-example-ecs-ghost"
+  name     = "nginx"
   port     = 8080
   protocol = "HTTP"
   vpc_id   = "${aws_vpc.main.id}"
 }
 
 resource "aws_alb" "main" {
-  name            = "tf-example-alb-ecs"
+  name            = "tf-alb-ecs"
   subnets         = ["${aws_subnet.main.*.id}"]
   security_groups = ["${aws_security_group.lb_sg.id}"]
 }
@@ -319,6 +331,6 @@ resource "aws_cloudwatch_log_group" "ecs" {
   name = "tf-ecs-group/ecs-agent"
 }
 
-resource "aws_cloudwatch_log_group" "app" {
-  name = "tf-ecs-group/app-ghost"
+resource "aws_cloudwatch_log_group" "nginx" {
+  name = "tf-ecs-group/server-nginx"
 }

@@ -1,0 +1,11 @@
+{
+  "Sid": "ECR",
+  "Effect": "Allow",
+  "Action": [
+    "ecr:GetDownloadUrlForLayer",
+    "ecr:BatchGetImage",
+    "ecr:GetRepositoryPolicy",
+    "ecr:GetAuthorizationToken"
+  ],
+  "Resource": "*"
+}
