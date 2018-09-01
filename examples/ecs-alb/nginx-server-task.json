@@ -11,6 +11,9 @@
         "hostPort": 8080
       }
     ],
+     "links": [
+       "phpapp"
+     ],
     "logConfiguration": {
         "logDriver": "awslogs",
         "options": {

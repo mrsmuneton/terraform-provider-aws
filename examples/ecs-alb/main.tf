@@ -41,13 +41,13 @@ resource "aws_route_table_association" "a" {
 
 ### Compute
 
-resource "aws_autoscaling_group" "nginx" {
+resource "aws_autoscaling_group" "asg" {
   name                 = "tf-asg"
   vpc_zone_identifier  = ["${aws_subnet.main.*.id}"]
   min_size             = "${var.asg_min}"
   max_size             = "${var.asg_max}"
   desired_capacity     = "${var.asg_desired}"
-  launch_configuration = "${aws_launch_configuration.nginx.name}"
+  launch_configuration = "${aws_launch_configuration.lc.name}"
 }
 
 data "template_file" "cloud_config" {
@@ -83,7 +83,7 @@ data "aws_ami" "stable_coreos" {
   owners = ["595879546273"] # CoreOS
 }
 
-resource "aws_launch_configuration" "nginx" {
+resource "aws_launch_configuration" "lc" {
   security_groups = [
     "${aws_security_group.instance_sg.id}",
   ]
@@ -165,11 +165,11 @@ resource "aws_ecs_cluster" "main" {
   name = "userpics-cluster"
 }
 
-data "template_file" "task_definition" {
+data "template_file" "template_nginx" {
   template = "${file("${path.module}/nginx-server-task.json")}"
 
   vars {
-    image_url        = "${var.nginx_repository_uri}:${var.nginx_tag}"
+    image_url        = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx:1.10"
     container_name   = "nginx"
     log_group_region = "${var.aws_region}"
     log_group_name   = "${aws_cloudwatch_log_group.nginx.name}"
@@ -178,25 +178,61 @@ data "template_file" "task_definition" {
 
 resource "aws_ecs_task_definition" "nginx" {
   family                = "tf_nginx_td"
-  container_definitions = "${data.template_file.task_definition.rendered}"
+  container_definitions = "${data.template_file.template_nginx.rendered}"
 }
 
-resource "aws_ecs_service" "test" {
+resource "aws_ecs_service" "ecs-nginx" {
   name            = "tf-ecs-nginx"
   cluster         = "${aws_ecs_cluster.main.id}"
   task_definition = "${aws_ecs_task_definition.nginx.arn}"
-  desired_count   = 1
+  desired_count   = 0
   iam_role        = "${aws_iam_role.ecs_service.name}"
 
   load_balancer {
-    target_group_arn = "${aws_alb_target_group.test.id}"
+    target_group_arn = "${aws_alb_target_group.nginx.id}"
     container_name   = "nginx"
     container_port   = "8080"
   }
 
   depends_on = [
     "aws_iam_role_policy.ecs_service",
-    "aws_alb_listener.front_end",
+    "aws_alb_listener.nginx",
+  ]
+}
+
+
+data "template_file" "template_php" {
+  template = "${file("${path.module}/php-app-task.json")}"
+
+  vars {
+    image_url        = "491947547358.dkr.ecr.us-west-2.amazonaws.com/php-app:7.2.9-fpm"
+    container_name   = "phpapp"
+    log_group_region = "${var.aws_region}"
+    log_group_name   = "${aws_cloudwatch_log_group.php.name}"
+  }
+}
+
+resource "aws_ecs_task_definition" "php" {
+  family                = "tf_php_td"
+  container_definitions = "${data.template_file.template_php.rendered}"
+}
+
+resource "aws_ecs_service" "ecs-php" {
+  name            = "tf-ecs-php"
+  cluster         = "${aws_ecs_cluster.main.id}"
+  task_definition = "${aws_ecs_task_definition.php.arn}"
+  desired_count   = 0
+  iam_role        = "${aws_iam_role.ecs_service.name}"
+
+  load_balancer {
+    target_group_arn = "${aws_alb_target_group.phpapp.id}"
+    container_name   = "phpapp"
+    container_port   = "9000"
+  }
+
+  depends_on = [
+    "aws_iam_role_policy.ecs_service",
+    # "aws_alb_listener.phpapp",
   ]
 }
 
@@ -241,19 +277,7 @@ resource "aws_iam_role_policy" "ecs_service" {
         "elasticloadbalancing:RegisterTargets"
       ],
       "Resource": "*"
-    },
-    {
-      "Sid": "ECR",
-      "Effect": "Allow",
-      "Action": [
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchGetImage",
-        "ecr:GetRepositoryPolicy",
-        "ecr:GetAuthorizationToken"
-      ],
-      "Resource": "*"
     }
-
   ]
 }
 EOF
@@ -261,10 +285,10 @@ EOF
 
 resource "aws_iam_instance_profile" "nginx" {
   name = "tf-ecs-instprofile"
-  role = "${aws_iam_role.nginx_instance.name}"
+  role = "${aws_iam_role.ec2_instance.name}"
 }
 
-resource "aws_iam_role" "nginx_instance" {
+resource "aws_iam_role" "ec2_instance" {
   name = "tf-ecs-instance-role"
 
   assume_role_policy = <<EOF
@@ -288,25 +312,36 @@ data "template_file" "instance_profile" {
   template = "${file("${path.module}/instance-profile-policy.json")}"
 
   vars {
-    app_log_group_arn = "${aws_cloudwatch_log_group.nginx.arn}"
+    nginx_log_group_arn = "${aws_cloudwatch_log_group.nginx.arn}"
+    phpapp_log_group_arn = "${aws_cloudwatch_log_group.nginx.arn}"
     ecs_log_group_arn = "${aws_cloudwatch_log_group.ecs.arn}"
+    nginx_ecr_arn = "${var.nginx_repository_arn}"
+    php_app_ecr_arn = "${var.php_app_repository_arn}"
   }
 }
 
-resource "aws_iam_role_policy" "nginx_instance" {
+resource "aws_iam_role_policy" "ec2_instance" {
   name   = "TfEcsInstanceRole"
-  role   = "${aws_iam_role.nginx_instance.name}"
+  role   = "${aws_iam_role.ec2_instance.name}"
   policy = "${data.template_file.instance_profile.rendered}"
 }
 
 ## ALB
 
-resource "aws_alb_target_group" "test" {
+resource "aws_alb_target_group" "nginx" {
   name     = "nginx"
   port     = 8080
   protocol = "HTTP"
   vpc_id   = "${aws_vpc.main.id}"
 }
+
+resource "aws_alb_target_group" "phpapp" {
+  name     = "phpapp"
+  port     = 9000
+  protocol = "HTTP"
+  vpc_id   = "${aws_vpc.main.id}"
+}
+
 
 resource "aws_alb" "main" {
   name            = "tf-alb-ecs"
@@ -314,16 +349,45 @@ resource "aws_alb" "main" {
   security_groups = ["${aws_security_group.lb_sg.id}"]
 }
 
-resource "aws_alb_listener" "front_end" {
+resource "aws_alb_listener" "nginx" {
   load_balancer_arn = "${aws_alb.main.id}"
   port              = "80"
   protocol          = "HTTP"
 
   default_action {
-    target_group_arn = "${aws_alb_target_group.test.id}"
+    target_group_arn = "${aws_alb_target_group.nginx.id}"
     type             = "forward"
   }
 }
+
+# resource "aws_alb_listener" "phpapp" {
+#   load_balancer_arn = "${aws_alb.main.id}"
+#   port              = "9000"
+#   protocol          = "HTTP"
+#
+#   default_action {
+#     target_group_arn = "${aws_alb_target_group.phpapp.id}"
+#     type             = "forward"
+#   }
+# }
+#
+# resource "aws_alb_listener_rule" "health_check" {
+#   listener_arn = "${aws_alb_listener.front_end.arn}"
+#
+#   action {
+#     type = "fixed-response"
+#     fixed_response {
+#       content_type = "text/plain"
+#       message_body = "HEALTHY"
+#       status_code = "200"
+#     }
+#   }
+#
+#   condition {
+#     field  = "path-pattern"
+#     values = ["/health"]
+#   }
+# }
 
 ## CloudWatch Logs
 
@@ -333,4 +397,8 @@ resource "aws_cloudwatch_log_group" "ecs" {
 
 resource "aws_cloudwatch_log_group" "nginx" {
   name = "tf-ecs-group/server-nginx"
+}
+
+resource "aws_cloudwatch_log_group" "php" {
+  name = "tf-ecs-group/php-app"
 }

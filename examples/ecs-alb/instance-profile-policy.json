@@ -24,8 +24,34 @@
         "logs:PutLogEvents"
       ],
       "Resource": [
-        "${app_log_group_arn}",
+        "${nginx_log_group_arn}",
+        "${phpapp_log_group_arn}",
         "${ecs_log_group_arn}"
+      ]
+    },
+    {
+      "Sid": "ECR",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:GetRepositoryPolicy",
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": [
+        "arn:aws:logs:*:*:*"
       ]
     }
   ]

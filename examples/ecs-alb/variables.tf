@@ -43,7 +43,33 @@ variable "nginx_repository_uri" {
   default = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx "
 }
 
+variable "nginx_repository_arn" {
+  description = "nginx repository url"
+  default = "arn:aws:ecr:us-west-2:491947547358:repository/nginx"
+}
+
 variable "nginx_tag" {
   description = "nginx image tag"
   default     = "1.10"
+}
+
+variable "php_app_repository_arn" {
+  description = "nginx repository url"
+  default = "arn:aws:ecr:us-west-2:491947547358:repository/php-app"
+}
+
+
+variable "php_app_repositiry_uri" {
+  description = "nginx repository url"
+  default = "491947547358.dkr.ecr.us-west-2.amazonaws.com/php-app"
+}
+
+variable "php_app_tag" {
+  description = "php app image tag"
+  default     = "7.2.9-fpm"
+}
+
+variable "bucket_name" {
+  description = "S3 bucket name"
+  default     = "userpics-sre-eval"
 }
