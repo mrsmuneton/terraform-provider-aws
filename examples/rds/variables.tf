@@ -1,5 +1,5 @@
 variable "identifier" {
-  default     = "mydb-rds"
+  default     = "userimages-rds"
   description = "Identifier for your DB"
 }
 
@@ -10,14 +10,13 @@ variable "storage" {
 
 variable "engine" {
   default     = "postgres"
-  description = "Engine type, example values mysql, postgres"
+  description = "Engine type: postgres"
 }
 
 variable "engine_version" {
   description = "Engine version"
 
   default = {
-    mysql    = "5.7.21"
     postgres = "9.6.8"
   }
 }
@@ -28,15 +27,20 @@ variable "instance_class" {
 }
 
 variable "db_name" {
-  default     = "mydb"
+  default     = "userimages"
   description = "db name"
 }
 
 variable "username" {
-  default     = "myuser"
+  default     = "mysqluser"
   description = "User name"
 }
 
 variable "password" {
   description = "password, provide through your ENV variables"
+}
+
+variable "aws_region" {
+  default     = "us-west-2"
+  description = "AWS Region"
 }
