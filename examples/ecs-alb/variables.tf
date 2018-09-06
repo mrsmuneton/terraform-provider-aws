@@ -25,12 +25,12 @@ variable "asg_min" {
 
 variable "asg_max" {
   description = "Max numbers of servers in ASG"
-  default     = "2"
+  default     = "4"
 }
 
 variable "asg_desired" {
   description = "Desired numbers of servers in ASG"
-  default     = "1"
+  default     = "2"
 }
 
 variable "admin_cidr_ingress" {
@@ -58,7 +58,6 @@ variable "php_app_repository_arn" {
   default = "arn:aws:ecr:us-west-2:491947547358:repository/php-app"
 }
 
-
 variable "php_app_repositiry_uri" {
   description = "nginx repository url"
   default = "491947547358.dkr.ecr.us-west-2.amazonaws.com/php-app"
@@ -72,4 +71,9 @@ variable "php_app_tag" {
 variable "bucket_name" {
   description = "S3 bucket name"
   default     = "userpics-sre-eval"
+}
+
+variable "jumpbox_ingress_cidr" {
+  description = "jumpbox ingress"
+  default = "75.82.47.204/32"
 }

@@ -13,18 +13,11 @@ resource "aws_vpc" "main" {
   cidr_block = "10.10.0.0/16"
 }
 
-resource "aws_subnet" "main" {
-  count             = "${var.az_count}"
-  cidr_block        = "${cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)}"
-  availability_zone = "${data.aws_availability_zones.available.names[count.index]}"
-  vpc_id            = "${aws_vpc.main.id}"
-}
-
 resource "aws_internet_gateway" "gw" {
   vpc_id = "${aws_vpc.main.id}"
 }
 
-resource "aws_route_table" "r" {
+resource "aws_route_table" "www2gateway" {
   vpc_id = "${aws_vpc.main.id}"
 
   route {
@@ -34,16 +27,20 @@ resource "aws_route_table" "r" {
 }
 
 resource "aws_route_table_association" "a" {
-  count          = "${var.az_count}"
-  subnet_id      = "${element(aws_subnet.main.*.id, count.index)}"
-  route_table_id = "${aws_route_table.r.id}"
+  subnet_id      = "${aws_subnet.subnet_1.id}"
+  route_table_id = "${aws_route_table.www2gateway.id}"
+}
+
+resource "aws_route_table_association" "b" {
+  subnet_id      = "${aws_subnet.subnet_2.id}"
+  route_table_id = "${aws_route_table.www2gateway.id}"
 }
 
 ### Compute
 
 resource "aws_autoscaling_group" "asg" {
   name                 = "tf-asg"
-  vpc_zone_identifier  = ["${aws_subnet.main.*.id}"]
+  vpc_zone_identifier  = ["${aws_subnet.subnet_1.id}", "${aws_subnet.subnet_2.id}"]
   min_size             = "${var.asg_min}"
   max_size             = "${var.asg_max}"
   desired_capacity     = "${var.asg_desired}"
@@ -180,7 +177,7 @@ data "template_file" "template_app_server" {
 }
 
 resource "aws_ecs_task_definition" "appserver" {
-  family                = "tf_php_td"
+  family                = "appserver_td"
   container_definitions = "${data.template_file.template_app_server.rendered}"
 }
 
@@ -188,7 +185,7 @@ resource "aws_ecs_service" "ecs-appserver" {
   name            = "tf-ecs-appserver"
   cluster         = "${aws_ecs_cluster.main.id}"
   task_definition = "${aws_ecs_task_definition.appserver.arn}"
-  desired_count   = 1
+  desired_count   =  2
   iam_role        = "${aws_iam_role.ecs_service.name}"
 
   load_balancer {
@@ -244,6 +241,16 @@ resource "aws_iam_role_policy" "ecs_service" {
         "elasticloadbalancing:RegisterTargets"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect":"Allow",
+      "Action":["s3:*"],
+      "Resource":["arn:aws:s3:::userpics-sre-eval/*"]
+    },
+    {
+       "Effect": "Allow",
+       "Action": ["rds-db:*"],
+       "Resource": ["arn:aws:rds:us-west-2:491947547358:db:userimages"]
     }
   ]
 }
@@ -305,7 +312,7 @@ resource "aws_alb_target_group" "appserver" {
 
 resource "aws_alb" "main" {
   name            = "tf-alb-ecs"
-  subnets         = ["${aws_subnet.main.*.id}"]
+  subnets         = ["${aws_subnet.subnet_1.id}", "${aws_subnet.subnet_2.id}"]
   security_groups = ["${aws_security_group.lb_sg.id}"]
 }
 
@@ -332,4 +339,68 @@ resource "aws_cloudwatch_log_group" "nginx" {
 
 resource "aws_cloudwatch_log_group" "php" {
   name = "tf-ecs-group/php-app"
+}
+
+## Bastion Box
+
+data "aws_ami" "ubuntu" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-trusty-14.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["099720109477"] # Canonical
+}
+
+resource "aws_security_group" "jumpbox-sg" {
+  name   = "jumpbox-security-group"
+  vpc_id = "${aws_vpc.main.id}"
+
+  ingress {
+    protocol    = "tcp"
+    from_port   = 22
+    to_port     = 22
+    cidr_blocks = ["${var.jumpbox_ingress_cidr}"]
+  }
+
+  egress {
+    protocol    = -1
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "jumpbox" {
+  ami           = "${data.aws_ami.ubuntu.id}"
+  instance_type = "t2.micro"
+  associate_public_ip_address = true
+  key_name               = "${var.key_name}"
+  vpc_security_group_ids = ["${aws_security_group.jumpbox-sg.id}"]
+  subnet_id      = "${aws_subnet.subnet_5.id}"
+
+  tags {
+    Name = "jumpbox"
+  }
+}
+
+resource "aws_route_table" "allowedIp" {
+  vpc_id = "${aws_vpc.main.id}"
+
+  route {
+    cidr_block = "0.0.0.0/32"
+    gateway_id = "${aws_internet_gateway.gw.id}"
+  }
+}
+
+resource "aws_route_table_association" "c" {
+  subnet_id      = "${aws_subnet.subnet_5.id}"
+  route_table_id = "${aws_route_table.allowedIp.id}"
 }

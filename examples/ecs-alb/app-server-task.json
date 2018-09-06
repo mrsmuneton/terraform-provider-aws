@@ -17,7 +17,47 @@
             "awslogs-group": "${php_log_group_name}",
             "awslogs-region": "${log_group_region}"
         }
-    }
+    },
+    "environment": [{
+      "name": "APP_NAME",
+      "value": "Ray Muneton SRE Eval"
+    },
+    {
+      "name": "APP_KEY",
+      "value": "base64:zA/y6/1pI4PKT4RSNqt8Svcn3Q2ICXIy3ejGAj63J40="
+    },
+    {
+      "name": "DB_CONNECTION",
+      "value": "mysql"
+    },
+    {
+      "name": "DB_HOST",
+      "value": "10.10.218.77"
+    },
+    {
+      "name": "DB_PORT",
+      "value": "3306"
+    },
+    {
+      "name": "DB_DATABASE",
+      "value": "userimages"
+    },
+    {
+      "name": "DB_USERNAME",
+      "value": "mysqluser"
+    },
+    {
+      "name": "DB_PASSWORD",
+      "value": "Tzl5NgeHPaHMpurPZ"
+    },
+    {
+      "name": "AWS_REGION",
+      "value": "us-west-2"
+    },
+    {
+      "name": "AWS_BUCKET",
+      "value": "userpics-sre-eval"
+    }]
   },
   {
     "cpu": 256,

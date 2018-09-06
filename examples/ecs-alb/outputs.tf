@@ -13,3 +13,7 @@ output "asg_name" {
 output "elb_hostname" {
   value = "${aws_alb.main.dns_name}"
 }
+
+output "jumpbox_public_ip" {
+  value = "${aws_instance.jumpbox.public_ip}"
+}
