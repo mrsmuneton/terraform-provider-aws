@@ -16,9 +16,7 @@ variable "engine" {
 variable "engine_version" {
   description = "Engine version"
 
-  default = {
-    mysql = "5.7"
-  }
+  default = "5.7"
 }
 
 variable "instance_class" {
