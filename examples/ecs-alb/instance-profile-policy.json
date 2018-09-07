@@ -53,6 +53,16 @@
       "Resource": [
         "arn:aws:logs:*:*:*"
       ]
+    },
+    {
+      "Effect":"Allow",
+      "Action":["s3:*"],
+      "Resource":["arn:aws:s3:::userpics-sre-eval/*"]
+    },
+    {
+       "Effect": "Allow",
+       "Action": ["rds-db:*"],
+       "Resource": ["arn:aws:rds:us-west-2:491947547358:db:userimages"]
     }
   ]
 }
