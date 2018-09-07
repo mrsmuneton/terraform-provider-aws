@@ -134,7 +134,7 @@ resource "aws_security_group" "instance_sg" {
     to_port   = 22
 
     cidr_blocks = [
-      "${var.admin_cidr_ingress}",
+      "${var.jumpbox_ingress_cidr}",
     ]
   }
 

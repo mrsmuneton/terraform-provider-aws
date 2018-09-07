@@ -12,7 +12,7 @@ Planning phase
 
 ```
 terraform plan \
-	-var admin_cidr_ingress='"{your_ip_address}/32"' \
+	-var jumpbox_ingress_cidr='"{your_ip_address}/32"' \
 	-var key_name={your_key_name}
 ```
 
@@ -20,7 +20,7 @@ Apply phase
 
 ```
 terraform apply \
-	-var admin_cidr_ingress='"{your_ip_address}/32"' \
+	-var jumpbox_ingress_cidr='"{your_ip_address}/32"' \
 	-var key_name={your_key_name}
 ```
 

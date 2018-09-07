@@ -1,6 +1,6 @@
 variable "identifier" {
   default     = "userimages-rds"
-  description = "Identifier for your DB"
+  description = "DB Name"
 }
 
 variable "storage" {
@@ -37,6 +37,6 @@ variable "username" {
 }
 
 variable "password" {
-  default     = "Tzl5NgeHPaHMpurPZ"
+  default     = ""
   description = "password, provide through your ENV variables"
 }
