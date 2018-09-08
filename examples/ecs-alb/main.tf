@@ -185,7 +185,7 @@ resource "aws_ecs_service" "ecs-appserver" {
   name            = "tf-ecs-appserver"
   cluster         = "${aws_ecs_cluster.main.id}"
   task_definition = "${aws_ecs_task_definition.appserver.arn}"
-  desired_count   =  "${var.app_desired}"
+  desired_count   =  "${var.task_count_desired}"
   iam_role        = "${aws_iam_role.ecs_service.name}"
 
   load_balancer {

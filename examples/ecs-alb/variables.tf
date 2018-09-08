@@ -33,7 +33,7 @@ variable "asg_desired" {
   default     = "2"
 }
 
-variable "app_desired" {
+variable "task_count_desired" {
   description = "Desired numbers of tasks running (2 containers per task)"
   default     = "1"
 }
