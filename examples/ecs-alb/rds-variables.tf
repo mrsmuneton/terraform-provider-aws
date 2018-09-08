@@ -15,7 +15,6 @@ variable "engine" {
 
 variable "engine_version" {
   description = "Engine version"
-
   default = "5.7"
 }
 

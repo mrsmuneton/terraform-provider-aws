@@ -33,6 +33,11 @@ variable "asg_desired" {
   default     = "2"
 }
 
+variable "app_desired" {
+  description = "Desired numbers of tasks running (2 containers per task)"
+  default     = "1"
+}
+
 variable "nginx_repository_uri" {
   description = "nginx repository url"
   default = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx"
