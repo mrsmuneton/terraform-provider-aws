@@ -36,6 +36,65 @@ resource "aws_route_table_association" "b" {
   route_table_id = "${aws_route_table.www2gateway.id}"
 }
 
+resource "aws_eip" "nat1" {
+  vpc      = true
+  depends_on = ["aws_internet_gateway.gw"]
+}
+
+resource "aws_nat_gateway" "ngw1" {
+  allocation_id = "${aws_eip.nat1.id}"
+  subnet_id     = "${aws_subnet.subnet_1.id}"
+
+  depends_on = ["aws_internet_gateway.gw"]
+
+  tags {
+    Name = "subnet_3 NAT"
+  }
+}
+
+resource "aws_eip" "nat2" {
+  vpc      = true
+  depends_on = ["aws_internet_gateway.gw"]
+}
+
+resource "aws_nat_gateway" "ngw2" {
+  allocation_id = "${aws_eip.nat2.id}"
+  subnet_id     = "${aws_subnet.subnet_2.id}"
+
+  depends_on = ["aws_internet_gateway.gw"]
+
+  tags {
+    Name = "subnet_4 NAT"
+  }
+}
+
+resource "aws_route_table" "nat_1" {
+  vpc_id = "${aws_vpc.main.id}"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    nat_gateway_id = "${aws_nat_gateway.ngw1.id}"
+  }
+}
+
+resource "aws_route_table" "nat_2" {
+  vpc_id = "${aws_vpc.main.id}"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    nat_gateway_id = "${aws_nat_gateway.ngw2.id}"
+  }
+}
+
+resource "aws_route_table_association" "c" {
+  subnet_id      = "${aws_subnet.subnet_3.id}"
+  route_table_id = "${aws_route_table.nat_1.id}"
+}
+
+resource "aws_route_table_association" "d" {
+  subnet_id      = "${aws_subnet.subnet_4.id}"
+  route_table_id = "${aws_route_table.nat_2.id}"
+}
 ### Compute
 
 resource "aws_autoscaling_group" "asg" {
@@ -166,13 +225,13 @@ data "template_file" "template_app_server" {
   template = "${file("${path.module}/app-server-task.json")}"
 
   vars {
-    nginx_image_url  = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx:1.10"
-    php_image_url    = "491947547358.dkr.ecr.us-west-2.amazonaws.com/php-app:7.2.9-fpm"
+    nginx_image_url      = "${var.nginx_repository_uri}:${var.nginx_tag}"
+    php_image_url        = "${var.php_app_repositiry_uri}:${var.php_app_repositiry_uri}"
     php_container_name   = "phpapp"
-    nginx_container_name   = "nginx"
-    log_group_region = "${var.aws_region}"
+    nginx_container_name = "nginx"
+    log_group_region     = "${var.aws_region}"
     php_log_group_name   = "${aws_cloudwatch_log_group.php.name}"
-    nginx_log_group_name   = "${aws_cloudwatch_log_group.nginx.name}"
+    nginx_log_group_name = "${aws_cloudwatch_log_group.nginx.name}"
   }
 }
 
@@ -185,7 +244,7 @@ resource "aws_ecs_service" "ecs-appserver" {
   name            = "tf-ecs-appserver"
   cluster         = "${aws_ecs_cluster.main.id}"
   task_definition = "${aws_ecs_task_definition.appserver.arn}"
-  desired_count   =  "${var.task_count_desired}"
+  desired_count   = "${var.task_count_desired}"
   iam_role        = "${aws_iam_role.ecs_service.name}"
 
   load_balancer {
@@ -331,14 +390,17 @@ resource "aws_alb_listener" "appserver" {
 
 resource "aws_cloudwatch_log_group" "ecs" {
   name = "tf-ecs-group/ecs-agent"
+  retention_in_days = 60
 }
 
 resource "aws_cloudwatch_log_group" "nginx" {
   name = "tf-ecs-group/server-nginx"
+  retention_in_days = 60
 }
 
 resource "aws_cloudwatch_log_group" "php" {
   name = "tf-ecs-group/php-app"
+  retention_in_days = 60
 }
 
 ## Bastion Box
@@ -395,12 +457,12 @@ resource "aws_route_table" "allowedIp" {
   vpc_id = "${aws_vpc.main.id}"
 
   route {
-    cidr_block = "0.0.0.0/32"
+    cidr_block = "${var.jumpbox_ingress_cidr}"
     gateway_id = "${aws_internet_gateway.gw.id}"
   }
 }
 
-resource "aws_route_table_association" "c" {
+resource "aws_route_table_association" "e" {
   subnet_id      = "${aws_subnet.subnet_5.id}"
   route_table_id = "${aws_route_table.allowedIp.id}"
 }
