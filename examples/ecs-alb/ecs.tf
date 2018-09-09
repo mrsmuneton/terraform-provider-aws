@@ -1,0 +1,71 @@
+
+resource "aws_ecs_cluster" "main" {
+  name = "userpics-cluster"
+}
+
+data "template_file" "template_app_server" {
+  template = "${file("${path.module}/app-server-task.json")}"
+
+  vars {
+    nginx_image_url  = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx:1.10"
+    php_image_url    = "491947547358.dkr.ecr.us-west-2.amazonaws.com/php-app:7.2.9-fpm"
+    php_container_name   = "phpapp"
+    nginx_container_name   = "nginx"
+    log_group_region = "${var.aws_region}"
+    php_log_group_name   = "${aws_cloudwatch_log_group.php.name}"
+    nginx_log_group_name   = "${aws_cloudwatch_log_group.nginx.name}"
+  }
+}
+
+resource "aws_ecs_task_definition" "appserver" {
+  family                = "tf_php_td"
+  container_definitions = "${data.template_file.template_app_server.rendered}"
+}
+
+resource "aws_ecs_service" "ecs-appserver" {
+  name            = "tf-ecs-appserver"
+  cluster         = "${aws_ecs_cluster.main.id}"
+  task_definition = "${aws_ecs_task_definition.appserver.arn}"
+  desired_count   = 1
+  iam_role        = "${aws_iam_role.ecs_service.name}"
+
+  load_balancer {
+    target_group_arn = "${aws_alb_target_group.appserver.id}"
+    container_name   = "nginx"
+    container_port   = "80"
+  }
+
+  depends_on = [
+    "aws_iam_role_policy.ecs_service",
+    "aws_alb_listener.appserver",
+  ]
+}
+
+resource "aws_launch_configuration" "lc" {
+  security_groups = [
+    "${aws_security_group.instance_sg.id}",
+  ]
+
+  key_name                    = "${var.key_name}"
+  image_id                    = "${data.aws_ami.stable_coreos.id}"
+  instance_type               = "${var.instance_type}"
+  iam_instance_profile        = "${aws_iam_instance_profile.nginx.name}"
+  user_data                   = "${data.template_file.cloud_config.rendered}"
+  associate_public_ip_address = true
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+data "template_file" "instance_profile" {
+  template = "${file("${path.module}/instance-profile-policy.json")}"
+
+  vars {
+    nginx_log_group_arn = "${aws_cloudwatch_log_group.nginx.arn}"
+    phpapp_log_group_arn = "${aws_cloudwatch_log_group.php.arn}"
+    ecs_log_group_arn = "${aws_cloudwatch_log_group.ecs.arn}"
+    nginx_ecr_arn = "${var.nginx_repository_arn}"
+    php_app_ecr_arn = "${var.php_app_repository_arn}"
+  }
+}
