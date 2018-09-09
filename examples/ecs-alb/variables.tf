@@ -18,6 +18,11 @@ variable "instance_type" {
   description = "AWS instance type"
 }
 
+variable "desired_task_count" {
+  default     = "1"
+  description = "Desired task count"
+}
+
 variable "asg_min" {
   description = "Min numbers of servers in ASG"
   default     = "1"
@@ -40,7 +45,7 @@ variable "admin_cidr_ingress" {
 
 variable "nginx_repository_uri" {
   description = "nginx repository url"
-  default = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx "
+  default = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx"
 }
 
 variable "nginx_repository_arn" {

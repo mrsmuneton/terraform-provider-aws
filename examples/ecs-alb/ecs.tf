@@ -7,13 +7,20 @@ data "template_file" "template_app_server" {
   template = "${file("${path.module}/app-server-task.json")}"
 
   vars {
-    nginx_image_url  = "491947547358.dkr.ecr.us-west-2.amazonaws.com/nginx:1.10"
-    php_image_url    = "491947547358.dkr.ecr.us-west-2.amazonaws.com/php-app:7.2.9-fpm"
+    nginx_image_url      = "${var.nginx_repository_uri}:${var.nginx_tag}"
+    php_image_url        = "${var.php_app_repositiry_uri}:${var.php_app_repositiry_uri}"
     php_container_name   = "phpapp"
-    nginx_container_name   = "nginx"
-    log_group_region = "${var.aws_region}"
+    nginx_container_name = "nginx"
+    log_group_region     = "${var.aws_region}"
     php_log_group_name   = "${aws_cloudwatch_log_group.php.name}"
-    nginx_log_group_name   = "${aws_cloudwatch_log_group.nginx.name}"
+    nginx_log_group_name = "${aws_cloudwatch_log_group.nginx.name}"
+    db_host              = "${aws_db_instance.main.address}"
+    db_port              = "${aws_db_instance.main.port}"
+    db_name              = "userimages"
+    db_username          = "mysqluser"
+    db_password          = "${var.password}"
+    aws_region           = "${var.aws_region}"
+    bucket_name          = "${var.bucket_name}"
   }
 }
 
@@ -26,7 +33,7 @@ resource "aws_ecs_service" "ecs-appserver" {
   name            = "tf-ecs-appserver"
   cluster         = "${aws_ecs_cluster.main.id}"
   task_definition = "${aws_ecs_task_definition.appserver.arn}"
-  desired_count   = 1
+  desired_count   = "${var.desired_task_count}"
   iam_role        = "${aws_iam_role.ecs_service.name}"
 
   load_balancer {
