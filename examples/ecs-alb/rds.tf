@@ -6,8 +6,8 @@ resource "aws_db_instance" "default" {
   engine_version         = "${var.engine_version}"
   instance_class         = "${var.instance_class}"
   name                   = "${var.db_name}"
-  username               = "${var.username}"
-  password               = "${var.password}"
+  username               = "${var.db_username}"
+  password               = "${var.db_password}"
   vpc_security_group_ids = ["${aws_security_group.default.id}"]
   db_subnet_group_name   = "${aws_db_subnet_group.default.id}"
   skip_final_snapshot    = true

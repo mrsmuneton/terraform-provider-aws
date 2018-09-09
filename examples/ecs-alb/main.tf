@@ -24,6 +24,10 @@ resource "aws_route_table" "www2gateway" {
     cidr_block = "0.0.0.0/0"
     gateway_id = "${aws_internet_gateway.gw.id}"
   }
+
+  tags {
+    Name = "www to ig"
+  }
 }
 
 resource "aws_route_table_association" "a" {
@@ -75,6 +79,10 @@ resource "aws_route_table" "nat_1" {
     cidr_block = "0.0.0.0/0"
     nat_gateway_id = "${aws_nat_gateway.ngw1.id}"
   }
+
+  tags {
+    Name = "private 1"
+  }
 }
 
 resource "aws_route_table" "nat_2" {
@@ -83,6 +91,10 @@ resource "aws_route_table" "nat_2" {
   route {
     cidr_block = "0.0.0.0/0"
     nat_gateway_id = "${aws_nat_gateway.ngw2.id}"
+  }
+
+  tags {
+    Name = "private 2"
   }
 }
 
@@ -104,6 +116,12 @@ resource "aws_autoscaling_group" "asg" {
   max_size             = "${var.asg_max}"
   desired_capacity     = "${var.asg_desired}"
   launch_configuration = "${aws_launch_configuration.lc.name}"
+
+  tag {
+    key                 = "Name"
+    value               = "asg"
+    propagate_at_launch = true
+  }
 }
 
 data "template_file" "cloud_config" {
@@ -118,25 +136,17 @@ data "template_file" "cloud_config" {
   }
 }
 
-data "aws_ami" "stable_coreos" {
-  most_recent = true
-
+data "aws_ami" "ami" {
+  most_recent      = true
   filter {
-    name   = "description"
-    values = ["CoreOS Container Linux stable *"]
+    name   = "owner-alias"
+    values = ["amazon"]
   }
 
   filter {
-    name   = "architecture"
-    values = ["x86_64"]
+    name   = "name"
+    values = ["amzn2-ami-hvm*"]
   }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  owners = ["595879546273"] # CoreOS
 }
 
 resource "aws_launch_configuration" "lc" {
@@ -145,9 +155,9 @@ resource "aws_launch_configuration" "lc" {
   ]
 
   key_name                    = "${var.key_name}"
-  image_id                    = "${data.aws_ami.stable_coreos.id}"
+  image_id                    = "${data.aws_ami.ami.id}"
   instance_type               = "${var.instance_type}"
-  iam_instance_profile        = "${aws_iam_instance_profile.nginx.name}"
+  iam_instance_profile        = "${aws_iam_instance_profile.instance_profile.name}"
   user_data                   = "${data.template_file.cloud_config.rendered}"
   associate_public_ip_address = true
 
@@ -171,6 +181,13 @@ resource "aws_security_group" "lb_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    protocol    = "tcp"
+    from_port   = 443
+    to_port     = 443
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port = 0
     to_port   = 0
@@ -179,6 +196,10 @@ resource "aws_security_group" "lb_sg" {
     cidr_blocks = [
       "0.0.0.0/0",
     ]
+  }
+
+  tags {
+    Name = "lb"
   }
 }
 
@@ -193,7 +214,7 @@ resource "aws_security_group" "instance_sg" {
     to_port   = 22
 
     cidr_blocks = [
-      "${var.jumpbox_ingress_cidr}",
+      "0.0.0.0/0",
     ]
   }
 
@@ -212,6 +233,10 @@ resource "aws_security_group" "instance_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags {
+    Name = "instance"
   }
 }
 
@@ -232,12 +257,20 @@ data "template_file" "template_app_server" {
     log_group_region     = "${var.aws_region}"
     php_log_group_name   = "${aws_cloudwatch_log_group.php.name}"
     nginx_log_group_name = "${aws_cloudwatch_log_group.nginx.name}"
+    db_host              = "${aws_db_instance.default.address}"
+    db_port              = "${aws_db_instance.default.port}"
+    db_name              = "${var.db_name}"
+    db_username          = "${var.db_username}"
+    db_password          = "${var.db_password}"
+    aws_region           = "${var.aws_region}"
+    bucket_name           = "${var.bucket_name}"
   }
 }
 
 resource "aws_ecs_task_definition" "appserver" {
   family                = "appserver_td"
   container_definitions = "${data.template_file.template_app_server.rendered}"
+  task_role_arn         = "${aws_iam_role.task_role.arn}"
 }
 
 resource "aws_ecs_service" "ecs-appserver" {
@@ -245,7 +278,7 @@ resource "aws_ecs_service" "ecs-appserver" {
   cluster         = "${aws_ecs_cluster.main.id}"
   task_definition = "${aws_ecs_task_definition.appserver.arn}"
   desired_count   = "${var.task_count_desired}"
-  iam_role        = "${aws_iam_role.ecs_service.name}"
+  iam_role        = "${aws_iam_role.ecs_service_role.arn}"
 
   load_balancer {
     target_group_arn = "${aws_alb_target_group.appserver.id}"
@@ -254,14 +287,73 @@ resource "aws_ecs_service" "ecs-appserver" {
   }
 
   depends_on = [
-    "aws_iam_role_policy.ecs_service",
+    "aws_iam_role_policy.ecs_task_policy",
     "aws_alb_listener.appserver",
   ]
 }
 
 ## IAM
 
-resource "aws_iam_role" "ecs_service" {
+resource "aws_iam_role" "task_role" {
+  name = "tf_task_role"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2008-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy" "ecs_task_policy" {
+  name = "tf_task_policy"
+  role = "${aws_iam_role.task_role.name}"
+
+  policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "autoscaling:Describe*",
+                "autoscaling:UpdateAutoScalingGroup",
+                "cloudformation:CreateStack",
+                "cloudformation:DeleteStack",
+                "cloudformation:DescribeStack*",
+                "cloudformation:UpdateStack",
+                "cloudwatch:GetMetricStatistics",
+                "ec2:Describe*",
+                "elasticloadbalancing:*",
+                "ecs:*",
+                "events:DescribeRule",
+                "events:DeleteRule",
+                "events:ListRuleNamesByTarget",
+                "events:ListTargetsByRule",
+                "events:PutRule",
+                "events:PutTargets",
+                "events:RemoveTargets",
+                "iam:ListInstanceProfiles",
+                "iam:ListRoles",
+                "iam:PassRole"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+EOF
+}
+
+resource "aws_iam_role" "ecs_service_role" {
   name = "tf_ecs_role"
 
   assume_role_policy = <<EOF
@@ -281,9 +373,9 @@ resource "aws_iam_role" "ecs_service" {
 EOF
 }
 
-resource "aws_iam_role_policy" "ecs_service" {
+resource "aws_iam_role_policy" "ecs_service_policy" {
   name = "tf_ecs_policy"
-  role = "${aws_iam_role.ecs_service.name}"
+  role = "${aws_iam_role.ecs_service_role.name}"
 
   policy = <<EOF
 {
@@ -292,12 +384,9 @@ resource "aws_iam_role_policy" "ecs_service" {
     {
       "Effect": "Allow",
       "Action": [
-        "ec2:Describe*",
-        "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
-        "elasticloadbalancing:DeregisterTargets",
-        "elasticloadbalancing:Describe*",
-        "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
-        "elasticloadbalancing:RegisterTargets"
+        "elasticloadbalancing:*",
+        "ec2:*",
+        "ecs:*"
       ],
       "Resource": "*"
     },
@@ -309,14 +398,14 @@ resource "aws_iam_role_policy" "ecs_service" {
     {
        "Effect": "Allow",
        "Action": ["rds-db:*"],
-       "Resource": ["arn:aws:rds:us-west-2:491947547358:db:userimages"]
+       "Resource": ["arn:aws:rds:us-west-2:491947547358:db:${var.db_name}"]
     }
   ]
 }
 EOF
 }
 
-resource "aws_iam_instance_profile" "nginx" {
+resource "aws_iam_instance_profile" "instance_profile" {
   name = "tf-ecs-instprofile"
   role = "${aws_iam_role.ec2_instance.name}"
 }
@@ -403,7 +492,59 @@ resource "aws_cloudwatch_log_group" "php" {
   retention_in_days = 60
 }
 
-## Bastion Box
+
+resource "aws_flow_log" "vpc_flow" {
+  log_group_name = "vpc-flow/main"
+  iam_role_arn   = "${aws_iam_role.vpc_log.arn}"
+  vpc_id         = "${aws_vpc.main.id}"
+  traffic_type   = "ALL"
+}
+
+resource "aws_iam_role" "vpc_log" {
+  name = "vpc_log"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "vpc-flow-logs.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy" "vpc_flow_policy" {
+  name = "vpc_flow_policy"
+  role = "${aws_iam_role.vpc_log.name}"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
+## Jump Box
 
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -438,6 +579,10 @@ resource "aws_security_group" "jumpbox-sg" {
     to_port     = 0
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags {
+    Name = "jumpbox"
+  }
 }
 
 resource "aws_instance" "jumpbox" {
@@ -459,6 +604,10 @@ resource "aws_route_table" "allowedIp" {
   route {
     cidr_block = "${var.jumpbox_ingress_cidr}"
     gateway_id = "${aws_internet_gateway.gw.id}"
+  }
+
+  tags {
+    Name = "allowedIp"
   }
 }
 
