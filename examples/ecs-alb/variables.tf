@@ -78,3 +78,8 @@ variable "bucket_name" {
   description = "S3 bucket name"
   default     = "userpics-sre-eval"
 }
+
+variable "jumpbox_ingress_cidr" {
+  description = "Ingress IamInstanceProfileName"
+  default     = "75.82.47.204/32"
+}

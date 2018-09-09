@@ -84,38 +84,63 @@ variable "allocated_storage" {
 
 variable "publicly_accessible" {
   description = "If true, the RDS instance will be open to the internet"
-  default     = false
-}
-
-variable "ingress_allow_security_groups" {
-  description = "A list of security group IDs to allow traffic from"
-  type        = "list"
-  default     = []
+  default     = true
 }
 
 variable "ingress_allow_cidr_blocks" {
   description = "A list of CIDR blocks to allow traffic from"
   type        = "list"
-  default     = []
+  default     = ["0.0.0.0/0"]
+}
+
+resource "aws_vpc" "database" {
+  cidr_block           = "10.10.128.0/17"
+  enable_dns_hostnames = true
+
+  tags {
+      Name = "db"
+  }
+}
+
+resource "aws_internet_gateway" "dbgw" {
+  vpc_id = "${aws_vpc.database.id}"
+}
+
+resource "aws_route_table" "rds-route-table" {
+    vpc_id = "${aws_vpc.database.id}"
+    route {
+        cidr_block = "0.0.0.0/0"
+        gateway_id = "${aws_internet_gateway.dbgw.id}"
+    }
+
+    tags {
+        Name = "db route table"
+    }
+}
+
+resource "aws_route_table_association" "rds-route-table-assoc" {
+    count          = "${var.az_count}"
+    subnet_id      = "${element(aws_subnet.database.*.id, count.index)}"
+    route_table_id = "${aws_route_table.rds-route-table.id}"
+}
+
+resource "aws_subnet" "database" {
+  count             = "${var.az_count}"
+  cidr_block        = "${cidrsubnet(aws_vpc.database.cidr_block, 8, count.index)}"
+  availability_zone = "${data.aws_availability_zones.available.names[count.index]}"
+  vpc_id            = "${aws_vpc.database.id}"
 }
 
 resource "aws_security_group" "main" {
   name        = "${var.name}-rds"
   description = "Allows traffic to RDS from other security groups"
-  vpc_id      = "${aws_vpc.main.id}"
+  vpc_id      = "${aws_vpc.database.id}"
 
   ingress {
     from_port       = "${var.port}"
     to_port         = "${var.port}"
     protocol        = "TCP"
-    security_groups = ["${var.ingress_allow_security_groups}"]
-  }
-
-  ingress {
-    from_port   = "${var.port}"
-    to_port     = "${var.port}"
-    protocol    = "TCP"
-    cidr_blocks = ["${var.ingress_allow_cidr_blocks}"]
+    security_groups = ["${aws_security_group.rds.id}"]
   }
 
   egress {
@@ -130,10 +155,10 @@ resource "aws_security_group" "main" {
   }
 }
 
-resource "aws_db_subnet_group" "main" {
+resource "aws_db_subnet_group" "database" {
   name        = "${var.name}"
   description = "RDS subnet group"
-  subnet_ids  = ["${aws_subnet.public.*.id}"]
+  subnet_ids  = ["${aws_subnet.database.*.id}"]
 }
 
 resource "aws_db_instance" "main" {
@@ -162,7 +187,7 @@ resource "aws_db_instance" "main" {
   allocated_storage = "${var.allocated_storage}"
 
   # Network / security
-  db_subnet_group_name   = "${aws_db_subnet_group.main.id}"
+  db_subnet_group_name   = "${aws_db_subnet_group.database.id}"
   vpc_security_group_ids = ["${aws_security_group.main.id}"]
   publicly_accessible    = "${var.publicly_accessible}"
 }

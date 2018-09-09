@@ -53,6 +53,15 @@
       "Resource": [
         "arn:aws:logs:*:*:*"
       ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "rds:*"
+      ],
+      "Resource": [
+        "*"
+      ]
     }
   ]
 }

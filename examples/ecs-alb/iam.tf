@@ -37,6 +37,13 @@ resource "aws_iam_role_policy" "ecs_service" {
         "elasticloadbalancing:RegisterTargets"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "rds:*"
+      ],
+      "Resource": "*"
     }
   ]
 }
