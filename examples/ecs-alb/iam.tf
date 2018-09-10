@@ -44,6 +44,13 @@ resource "aws_iam_role_policy" "ecs_service" {
         "rds:*"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:*"
+      ],
+      "Resource":["arn:aws:s3:::${var.bucket_name}/*"]
     }
   ]
 }

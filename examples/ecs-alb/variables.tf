@@ -25,17 +25,17 @@ variable "desired_task_count" {
 
 variable "asg_min" {
   description = "Min numbers of servers in ASG"
-  default     = "1"
+  default     = "2"
 }
 
 variable "asg_max" {
   description = "Max numbers of servers in ASG"
-  default     = "2"
+  default     = "6"
 }
 
 variable "asg_desired" {
   description = "Desired numbers of servers in ASG"
-  default     = "1"
+  default     = "2"
 }
 
 variable "admin_cidr_ingress" {

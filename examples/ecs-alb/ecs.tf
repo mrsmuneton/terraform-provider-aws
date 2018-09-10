@@ -25,7 +25,7 @@ data "template_file" "template_app_server" {
 }
 
 resource "aws_ecs_task_definition" "appserver" {
-  family                = "tf_php_td"
+  family                = "appserver"
   container_definitions = "${data.template_file.template_app_server.rendered}"
 }
 
