@@ -2,6 +2,18 @@
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:Describe*",
+        "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+        "elasticloadbalancing:DeregisterTargets",
+        "elasticloadbalancing:Describe*",
+        "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+        "elasticloadbalancing:RegisterTargets"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "ecsInstanceRole",
       "Effect": "Allow",
       "Action": [
@@ -14,19 +26,6 @@
       ],
       "Resource": [
         "*"
-      ]
-    },
-    {
-      "Sid": "allowLoggingToCloudWatch",
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogStream",
-        "logs:PutLogEvents"
-      ],
-      "Resource": [
-        "${nginx_log_group_arn}",
-        "${phpapp_log_group_arn}",
-        "${ecs_log_group_arn}"
       ]
     },
     {

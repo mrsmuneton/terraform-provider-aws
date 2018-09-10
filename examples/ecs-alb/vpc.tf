@@ -2,11 +2,7 @@
 data "aws_availability_zones" "available" {}
 
 resource "aws_vpc" "main" {
-  cidr_block = "10.10.0.0/17"
-
-  tags {
-      Name = "main"
-  }
+  cidr_block = "10.10.0.0/16"
 }
 
 resource "aws_subnet" "public" {
@@ -19,6 +15,22 @@ resource "aws_subnet" "public" {
 resource "aws_internet_gateway" "gw" {
   vpc_id = "${aws_vpc.main.id}"
 }
+
+resource "aws_route_table" "r" {
+  vpc_id = "${aws_vpc.main.id}"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = "${aws_internet_gateway.gw.id}"
+  }
+}
+
+resource "aws_route_table_association" "a" {
+  count          = "${var.az_count}"
+  subnet_id      = "${element(aws_subnet.public.*.id, count.index)}"
+  route_table_id = "${aws_route_table.r.id}"
+}
+
 ### Compute
 
 resource "aws_autoscaling_group" "asg" {
@@ -41,24 +53,3 @@ data "template_file" "cloud_config" {
     ecs_log_group_name = "${aws_cloudwatch_log_group.ecs.name}"
   }
 }
-
-# resource "aws_instance" "jumpbox" {
-#   ami           = "${data.aws_ami.ubuntu.id}"
-#   instance_type = "t2.micro"
-#   associate_public_ip_address = true
-#   key_name               = "${var.key_name}"
-#   vpc_security_group_ids = ["${aws_security_group.jumpbox-sg.id}"]
-#   subnet_id      = "${element(aws_subnet.public.*.id, 1)}"
-#
-#   tags {
-#     Name = "jumpbox"
-#   }
-# }
-
-
-# resource "aws_flow_log" "vpc_flow" {
-#   log_group_name = "vpc-flow/main"
-#   iam_role_arn   = "${aws_iam_role.vpc_log.arn}"
-#   vpc_id         = "${aws_vpc.main.id}"
-#   traffic_type   = "ALL"
-# }

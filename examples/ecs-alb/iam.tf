@@ -51,6 +51,18 @@ resource "aws_iam_role_policy" "ecs_service" {
         "s3:*"
       ],
       "Resource":["arn:aws:s3:::${var.bucket_name}/*"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": [
+        "arn:aws:logs:*:*:*"
+      ]
     }
   ]
 }
@@ -60,6 +72,12 @@ EOF
 resource "aws_iam_instance_profile" "nginx" {
   name = "tf-ecs-instprofile"
   role = "${aws_iam_role.ec2_instance.name}"
+}
+
+resource "aws_iam_role_policy" "ec2_instance" {
+  name   = "TfEcsInstanceRole"
+  role   = "${aws_iam_role.ec2_instance.name}"
+  policy = "${data.template_file.instance_profile.rendered}"
 }
 
 resource "aws_iam_role" "ec2_instance" {

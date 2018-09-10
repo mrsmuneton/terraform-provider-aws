@@ -64,7 +64,7 @@ variable "php_app_repository_arn" {
 }
 
 
-variable "php_app_repositiry_uri" {
+variable "php_app_repository_uri" {
   description = "nginx repository url"
   default = "491947547358.dkr.ecr.us-west-2.amazonaws.com/php-app"
 }

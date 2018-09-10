@@ -8,7 +8,7 @@ data "template_file" "template_app_server" {
 
   vars {
     nginx_image_url      = "${var.nginx_repository_uri}:${var.nginx_tag}"
-    php_image_url        = "${var.php_app_repositiry_uri}:${var.php_app_repositiry_uri}"
+    php_image_url        = "${var.php_app_repository_uri}:${var.php_app_tag}"
     php_container_name   = "phpapp"
     nginx_container_name = "nginx"
     log_group_region     = "${var.aws_region}"
