@@ -41,15 +41,3 @@ resource "aws_autoscaling_group" "asg" {
   desired_capacity     = "${var.asg_desired}"
   launch_configuration = "${aws_launch_configuration.lc.name}"
 }
-
-data "template_file" "cloud_config" {
-  template = "${file("${path.module}/cloud-config.yml")}"
-
-  vars {
-    aws_region         = "${var.aws_region}"
-    ecs_cluster_name   = "${aws_ecs_cluster.main.name}"
-    ecs_log_level      = "info"
-    ecs_agent_version  = "latest"
-    ecs_log_group_name = "${aws_cloudwatch_log_group.ecs.name}"
-  }
-}
