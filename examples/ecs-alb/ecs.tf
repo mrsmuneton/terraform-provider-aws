@@ -54,7 +54,7 @@ resource "aws_launch_configuration" "lc" {
   ]
 
   key_name                    = "${var.key_name}"
-  image_id                    = "${data.aws_ami.stable_coreos.id}"
+  image_id                    = "${data.aws_ami.aws_optimized_ecs.id}"
   instance_type               = "${var.instance_type}"
   iam_instance_profile        = "${aws_iam_instance_profile.nginx.name}"
   user_data                   = "${data.template_file.cloud_config.rendered}"

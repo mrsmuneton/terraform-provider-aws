@@ -1,9 +1,9 @@
-data "aws_ami" "stable_coreos" {
+data "aws_ami" "aws_optimized_ecs" {
   most_recent = true
 
   filter {
-    name   = "description"
-    values = ["CoreOS Container Linux stable *"]
+    name   = "name"
+    values = ["amzn-ami*amazon-ecs-optimized"]
   }
 
   filter {
@@ -16,5 +16,5 @@ data "aws_ami" "stable_coreos" {
     values = ["hvm"]
   }
 
-  owners = ["595879546273"] # CoreOS
+  owners = ["591542846629"] # AWS
 }
