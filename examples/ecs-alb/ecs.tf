@@ -62,6 +62,11 @@ resource "aws_launch_configuration" "lc" {
   lifecycle {
     create_before_destroy = true
   }
+
+  user_data                   = <<EOF
+#!/bin/bash
+echo ECS_CLUSTER=${aws_ecs_cluster.main.id} >> /etc/ecs/ecs.config
+EOF
 }
 
 data "template_file" "instance_profile" {
