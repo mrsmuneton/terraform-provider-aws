@@ -62,12 +62,12 @@ data "template_file" "cloud_config" {
   }
 }
 
-data "aws_ami" "stable_coreos" {
+data "aws_ami" "aws_optimized_ecs" {
   most_recent = true
 
   filter {
-    name   = "description"
-    values = ["CoreOS Container Linux stable *"]
+    name   = "name"
+    values = ["amzn-ami*amazon-ecs-optimized"]
   }
 
   filter {
@@ -80,8 +80,9 @@ data "aws_ami" "stable_coreos" {
     values = ["hvm"]
   }
 
-  owners = ["595879546273"] # CoreOS
+  owners = ["591542846629"] # AWS
 }
+
 
 resource "aws_launch_configuration" "lc" {
   security_groups = [
@@ -89,10 +90,9 @@ resource "aws_launch_configuration" "lc" {
   ]
 
   key_name                    = "${var.key_name}"
-  image_id                    = "${data.aws_ami.stable_coreos.id}"
+  image_id                    = "${data.aws_ami.aws_optimized_ecs.id}"
   instance_type               = "${var.instance_type}"
   iam_instance_profile        = "${aws_iam_instance_profile.nginx.name}"
-  user_data                   = "${data.template_file.cloud_config.rendered}"
   associate_public_ip_address = true
 
   lifecycle {
